@@ -1,0 +1,16 @@
+{
+	"persons": 
+	[
+		{
+			"address": 
+			[
+				"ADD2_1",
+				"ADD2_2",
+				"ADD2_3"
+			],
+			"name": "p2",
+			"uid": 2
+		}
+	],
+	"version": 1
+}

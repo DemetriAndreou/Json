@@ -1,0 +1,25 @@
+{
+	"menu": 
+	{
+		"id": "file",
+		"popup": 
+		{
+			"menuitem": 
+			[
+				{
+					"onclick": "changed",
+					"value": "New"
+				},
+				{
+					"onclick": "OpenDoc()",
+					"value": "Open"
+				},
+				{
+					"onclick": "CloseDoc()",
+					"value": "Close"
+				}
+			]
+		},
+		"value": "File\u039bHere\bThere\"AndWhere"
+	}
+}
