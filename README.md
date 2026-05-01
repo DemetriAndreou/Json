@@ -59,7 +59,7 @@ clang-tidy18 Json.cpp Json.h test.cpp
 
 Checking with valgrind
 ----------------------
-==73873== Memcheck, a memory error detector
+```==73873== Memcheck, a memory error detector
 ==73873== Copyright (C) 2002-2024, and GNU GPL'd, by Julian Seward et al.
 ==73873== Using Valgrind-3.26.0 and LibVEX; rerun with -h for copyright info
 ==73873== Command: tst
