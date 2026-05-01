@@ -52,8 +52,8 @@ in the net result must be the same.
 
 Lint
 ----
-clang-tidy18 Json.cpp Json.h test.cpp
-```[1/3] Processing file ./Json.cpp.
+```clang-tidy18 Json.cpp Json.h test.cpp
+[1/3] Processing file ./Json.cpp.
 [2/3] Processing file ./Json.h.
 [3/3] Processing file ./test.cpp.
 
