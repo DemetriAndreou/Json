@@ -15,3 +15,5 @@ target_compile_features(tst PRIVATE cxx_std_20)
 target_compile_options(tst PRIVATE -Wall -Wextra -Wpedantic)
 
 set(CMAKE_BUILD_TYPE Debug)
+
+target_link_libraries(tst Threads::Threads  )

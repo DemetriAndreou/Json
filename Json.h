@@ -40,6 +40,7 @@ public:
 	using F     = double;
 	using Ja    = std::vector<Json>;
 	using Jk    = std::map<std::string,Json>;
+	//using Jk    = std::unordered_map<std::string,Json>;
 	using DataT = std::variant<std::monostate, F, I, bool, std::string, Ja, Jk>;
 
 	Ja::reference        operator[]( Ja::size_type      pos  )       { return std::get<Json::Ja>( data )[pos]; }
@@ -53,15 +54,8 @@ public:
 	Json( Json &&that )                  = default;
 	~Json()                              = default;
 
-	Json( const Json::DataT &in )
-		:data( in )
-	{
-	}
-
-	Json( Json::DataT &&in )
-		:data( std::move(in) )
-	{
-	}
+	Json( const Json::DataT  &in ) :data( in )             {}
+	Json( Json::DataT       &&in ) :data( std::move(in) )  {}
 
 	Json &operator=( const Json::DataT &in )
 	{
@@ -81,19 +75,46 @@ public:
 		return *this;
 	}
 
-	operator Json::DataT() const &    { return data;            }
-	operator Json::DataT() &&         { return std::move(data); }
+	operator Json::DataT() const &      { return data;            }
+	operator Json::DataT() &&           { return std::move(data); }
 
-	friend std::ostream &operator<<( std::ostream &out, const Json &that )
+	void setFmt( std::chars_format in ) { fmt         = in;                        }
+	std::chars_format getFmt()    const { return fmt;                              }
+	void setPrecision( int in )         { precision   = in;                        }
+	int  getPrecision()                 { return precision;                        }
+	void setPretty( bool in )           { prettyPrint = in;                        } 
+	bool getPretty()              const { return prettyPrint;                      }
+	std::string str( std::string::size_type reserve = 0)             const
 	{
-		that.write( out, 0 );
-		out << '\n';
+		std::string out;
+		if( reserve )
+			out.reserve( reserve );
+		write(out);
 		return out;
 	}
 
+	friend std::ostream &operator<<( std::ostream &out, const Json &that )
+	{
+		std::ostream_iterator<char> it(out);
+		that.write( it );
+		*it++ = '\n';
+		return out;
+	}
+
+	void parse( std::istream_iterator<char> it, std::istream_iterator<char> end );
+	void parse( std::string::const_iterator it, std::string::const_iterator end );
+	void parse( const std::string &str ) { parse( str.begin(), str.end() );       }
+
 	friend std::istream &operator>>( std::istream &in, Json &that )
 	{
-		that = that.readObject( in );
+		that.setNull();
+
+		in >> std::noskipws;
+
+		std::istream_iterator<char> begin(in);
+		std::istream_iterator<char> end;
+
+		that.parse( begin, end );
 		return in;
 	}
 
@@ -101,35 +122,14 @@ public:
 	bool isNull() const { return std::holds_alternative<std::monostate>(data);      }
 
 private:
-	void   reset()      { data = std::monostate{};                                  }
-	enum   State        { Object, String, Value, PostKey, PostValue, PostValueArray };
-	void   writeCh( std::ostream &out, char ch ) const
-	{
-		switch( ch )
-		{
-			case '\"': out << '\\' << '"';  break;
-			case '\\': out << '\\' << '\\'; break;
-			case '/' : out         << '/';  break;
-			case '\b': out << '\\' << 'b';  break;
-			case '\f': out << '\\' << 'f';  break;
-			case '\n': out << '\\' << 'n';  break;
-			case '\r': out << '\\' << 'r';  break;
-			case '\t': out << '\\' << 't';  break;
-			default:
-				out << ch;
-			break;
-		}
-	}
-	static State changeState( State, State to )
-	{
-		return to;
-	}
+	void reset()        { data = std::monostate{};                                  }
 
-	static const char *stateStr( State state );
-	static Json    readObject(   std::istream &in );
-	static Json    readArray(    std::istream &in );
-	static Json    readValue(    std::istream &in );
-	void           write(        std::ostream &out, int depth, bool specialIndent = false ) const;
+	void write( std::ostream_iterator<char> it ) const;
+	void write( std::string &out               ) const;
+
+	std::chars_format fmt         = std::chars_format::scientific;
+	int               precision   = 15;
+	bool              prettyPrint = true;
 
 	DataT data;
 };

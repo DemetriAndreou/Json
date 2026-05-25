@@ -21,25 +21,24 @@
 
 #include<Json.h>
 #include<iomanip>
+#include<cstdlib>
+#include<charconv>
 
 namespace
 {
 
-class indent
+void indent( auto &out, unsigned int depth )
 {
-public:
-	indent(int indent) : indent_(indent)
+	for( auto idx = 0u; idx < depth; ++idx )
 	{
+		*out++ = '\t';
 	}
+}
 
-	friend std::ostream &operator<<(std::ostream &strm, const indent &that )
-	{
-		for( auto idx = 0u; idx < that.indent_; ++idx ) strm.put('\t');
-		return strm;
-	}
-private:
-	unsigned int indent_;
-};
+inline void checkEnd( auto &idx, auto &end )
+{
+	if( idx == end ) throw std::runtime_error("unexpected end");
+}
 
 inline bool isUniChar( unsigned char ch )
 {
@@ -122,127 +121,124 @@ std::string codePointToUTF8(unsigned int index)
 	return utf8;
 }
 
+void ws( auto &it, auto &end)
+{
+	while( it != end && std::isspace(static_cast<unsigned char>(*it)) )
+	{
+		//char ch = *it;
+		++it;
+	}
 }
 
-namespace DaJson
+const std::string readTillWs( auto &it, auto &end)
 {
+	std::string ret;
 
-void Json::write( std::ostream &out, int depth, bool specialIdent ) const
-{
-	if( std::holds_alternative<std::string>( data ) )
+	while( it != end
+	       && false == std::isspace(static_cast<unsigned char>(*it))
+	       && *it != '}'
+	       && *it != ']'
+	       && *it != ',' )
 	{
-		const std::string &str = std::get<std::string>( data );
-		if( specialIdent ) out << '\n' << indent( depth );
-		out << '"';
-		for( auto idx = 0u; idx < str.length(); ++ idx )
+		char ch = *it;
+		ret += ch;
+		++it;
+	}
+	return ret;
+}
+
+DaJson::Json readArray( auto &idx, auto &end );
+DaJson::Json readValue( auto &idx, auto &end );
+
+std::string readString( auto &idx, auto &end )
+{
+	std::string ret;
+
+	while( idx != end && '"' != *idx )
+	{
+		auto ch = *idx++;
+		ret += ch;
+	}
+	if( *idx == '"' )
+	{
+		idx++;
+	}
+
+	return ret;
+}
+
+DaJson::Json readObject( auto &idx, auto &end )
+{
+	DaJson::Json ret;
+	DaJson::Json::Jk jk;
+
+	ws( idx, end );
+	while( idx != end )
+	{
+		ws( idx, end );
+		if( idx == end ) { ret = jk; return ret; }
+		char ch = *idx;
+		switch( ch )
 		{
-			char ch      = str[idx];
-			auto peekIdx = idx+1;
-			if( peekIdx < str.length() )
+			case ',':
+				++idx;
+				ws( idx, end );
+			break;
+			case '}':
+				++idx;
+				ret = jk;
+				ws( idx, end );
+				return ret;
+			case '"':
 			{
-				if( isUniChar( ch ) )
+				++idx;
+				std::string key = readString( idx, end );
+				ws( idx, end );
+				ch = *idx;
+				if( ':' == ch )
 				{
-					char ch2 = str[++idx];
-					if( isUniChar( ch2 ) )
-					{
-						std::string uni;
-						uni += ch; uni += ch2;
-						std::ostringstream strm;
-						strm << std::setfill('0') << std::setw(4) << std::hex << utf8ToCodePoint( uni );
-						std::string some = strm.str();
-						out << "\\u" << strm.str();
-					}
-					else
-					{
-						out << ch << ch2;
-					}
+					++idx;
+					ws( idx, end );
+					jk.emplace( std::make_pair( key, readValue( idx, end ) ));
+					ws( idx, end );
 				}
 				else
 				{
-					writeCh( out, ch );
+					throw std::runtime_error("expected :");
 				}
 			}
-			else
-			{
-				writeCh( out, ch );
-			}
-		}
-		out << '"';
-	}
-	else if( std::holds_alternative<I>( data ) )
-	{
-		out << std::get<I>( data );
-	}
-	else if( std::holds_alternative<F>( data ) )
-	{
-		out << std::get<F>( data );
-	}
-	else if( std::holds_alternative<bool>( data ) )
-	{
-		const char *str = std::get<bool>( data ) ? "true" : "false";
-		out << str;
-	}
-	else if( std::holds_alternative<Jk>( data ) )
-	{
-		std::size_t count = 0;
-		const Jk &jk      = std::get<Jk>( data );
-		if( jk.size() )
-		{
-			if( depth ) out << '\n';
-			out << indent( depth ) << "{" << '\n';
-		}
-		for (const auto &[key, value] : jk)
-		{
-			out << indent( depth+1 ) << '"' << key << "\": ";
-			value.write( out, depth+1 );
+			break;
 
-			if( jk.size() - 1 > count )
-			{
-				out << ',' << '\n';
-			}
+			default:
+				throw std::runtime_error("unexpected character");
+			break;
+		}
+	}
 
-			count++;
-		}
-		if( jk.size() ) out << '\n' << indent( depth ) << '}';
-	}
-	else if( std::holds_alternative<Ja>( data ) )
-	{
-		std::size_t count = 0;
-		const Ja &ja = std::get<Ja>( data );
-		if( ja.size() ) out << '\n' << indent( depth ) << '[';
-		for( auto &idx : ja )
-		{
-			idx.write( out, depth+1, true );
-			if( ja.size() - 1 > count ) out << ',';
-			count++;
-		}
-		if( ja.size() ) out << '\n' << indent( depth ) << ']';
-	}
-	else
-	{
-		out  << '\n' << indent( depth ) << "null";
-	}
+	ret = jk;
+	return ret;
 }
 
-Json Json::readValue( std::istream &in )
+DaJson::Json readValue( auto &idx, auto &end )
 {
-	Json ret;
-	char ch;
-	in >> std::ws;
-	ch = in.peek();
-	ch = std::isspace( ch ) ? ' ' : ch;
+	DaJson::Json ret;
+
+	ws( idx, end );
+	char ch = *idx;
 	switch( ch )
 	{
 		case '"':
 		{
+			++idx;
+			ch = *idx;
 			std::string string;
-			in.get();
-			ch = in.get();
-			while( !in.eof() )
+			while( idx != end )
 			{
 				if( '\\' == ch )
 				{
-					ch = in.get();
+					++idx;
+					checkEnd( idx, end );
+					ch = *idx;
 					switch( ch )
 					{
 						case '"':  string += '\"'; break;
@@ -256,7 +252,12 @@ Json Json::readValue( std::istream &in )
 						case 'u':
 						{
 							char chs[5]; chs[4] = 0;
-							in.read( chs, 4 );
+
+							++idx; checkEnd( idx, end ); chs[0] = *idx;
+							++idx; checkEnd( idx, end ); chs[1] = *idx;
+							++idx; checkEnd( idx, end ); chs[2] = *idx;
+							++idx; checkEnd( idx, end ); chs[3] = *idx;
+
 							string += codePointToUTF8( std::stoi( chs, nullptr, 16 ));
 						}
 						break;
@@ -266,6 +267,8 @@ Json Json::readValue( std::istream &in )
 				{
 					if( '"' == ch )
 					{
+						++idx;
+						checkEnd( idx, end );
 						break;
 					}
 					else
@@ -273,247 +276,339 @@ Json Json::readValue( std::istream &in )
 						string += ch;
 					}
 				}
-				ch = in.get();
+				++idx;
+				checkEnd( idx, end );
+				ch = *idx;
 			}
-			in >> std::ws;
 			ret = string;
+			ws( idx, end );
 			return ret;
 		}
 		break;
+
+		break;
+
 		case '{':
-			ret = readObject( in );
+		{
+			++idx;
+			ret = readObject( idx, end );
+		}
 		break;
+
 		case '[':
-			ret = readArray( in );
+		{
+			++idx;
+			ret = readArray( idx, end );
+		}
 		break;
+
 		case 't': case 'T':
 		{
-			ret.data = true;
-			for( char peek = ch;
-			     peek     != ','
-			     && peek  != '}'
-			     && peek  != ']'
-			     && false == std::isspace(peek)
-			     && !in.eof();
-			     peek = in.peek() )
-			{
-				in.get();
-			} 
-			in >> std::ws;
+			ret = true;
+			readTillWs( idx, end );
 		}
 		break;
+
 		case 'f': case 'F':
 		{
-			ret.data = false;
-			for( char peek = ch;
-			     peek     != ','
-			     && peek  != '}'
-			     && peek  != ']'
-			     && false == std::isspace(peek)
-			     && !in.eof();
-			     peek = in.peek() )
-			{
-				in.get();
-			}
-			in >> std::ws;
+			ret = false;
+			readTillWs( idx, end );
 		}
 		break;
+
 		case 'n': case 'N':
 		{
-			for( char peek = ch;
-			     peek     != ','
-			     && peek  != '}'
-			     && peek  != ']'
-			     && false == std::isspace(peek)
-			     && !in.eof();
-			     peek = in.peek() )
-			{
-				in.get();
-			} 
-			in >> std::ws;
+			readTillWs( idx, end );
+			ret.setNull();
 		}
 		break;
+
 		default:
 		{
-			std::string number;
-			in >> std::ws;
-			for( char peek = ch;
-			     peek     != ','
-			     && peek  != '}'
-			     && peek  != ']'
-			     && false == std::isspace(peek)
-			     && !in.eof();
-			     peek = in.peek() )
-			{
-				number += in.get();
-			}
+			ws( idx, end );
+			double d;
+			long   l;
+			char   *p_l_end{}, *p_d_end{};
+			const std::string num = readTillWs( idx, end );
 
-			bool isI = true;
-			for( auto ch : number )
 			{
-				if( false == std::isalnum( ch ) )
+				d = std::strtod( num.c_str(), &p_d_end );
+				if( num.c_str() == p_d_end )
 				{
-					isI = false;
-					break;
+					throw std::runtime_error("not a number");
 				}
 			}
-			if( isI )
+
 			{
-				I n = 0;
-				std::stringstream strm(number);
-				strm >> n;
-				ret.data = n;
+				l = std::strtol( num.c_str(), &p_l_end, 10 );
+				if( num.c_str() == p_l_end )
+				{
+					throw std::runtime_error("not a number");
+				}
+			}
+	
+			if( p_l_end < p_d_end )
+			{
+				ret = static_cast<DaJson::Json::F>(d);
 			}
 			else
 			{
-				F n = 0;
-				std::stringstream strm(number);
-				strm >> n;
-				ret.data = n;
+				ret = static_cast<DaJson::Json::I>(l);
 			}
-			in >> std::ws;
 		}
 		break;
 	}
 
+	ws( idx, end );
 	return ret;
 }
 
-Json Json::readArray( std::istream &in )
+DaJson::Json readArray( auto &idx, auto &end )
 {
-	Json ret;
-	Ja   ja;
-	char ch;
-	in >> std::ws;
-	State state = Value;
-	while( in.get(ch) && !in.eof() )
+	DaJson::Json ret;
+	DaJson::Json::Ja ja;
+
+	while( idx != end )
 	{
-		ch = std::isspace( ch ) ? ' ' : ch;
-		switch( state )
+		ws( idx, end );
+		checkEnd( idx, end );
+		char ch = *idx;
+		switch( ch )
 		{
-			case Value:
-				switch( ch )
-				{
-					case '[' :
-						in >> std::ws;
-						state = PostValueArray;
-						ja.emplace_back( readValue( in ) );
-					break;
-					case ']' :
-						in >> std::ws;
-						ret = ja;
-						return ret;
-					break;
-				}
-				in >> std::ws;
+			case ',':
+				++idx;
 			break;
 
-			case PostValueArray:
-				switch( ch )
-				{
-					case ',':
-						state = PostValueArray;
-						ja.emplace_back( readValue( in ) );
-					break;
-					case ']' :
-						in >> std::ws;
-						ret = ja;
-						return ret;
-					break;
-				}
+			case ']':
+				++idx;
+				ws( idx, end );
+				return ret = ja;
 			break;
 
-			case Object: case String: case PostKey: case PostValue:
+			default:
+			{
+				ws( idx, end );
+				ja.emplace_back( readValue( idx, end ) );
+			}
 			break;
 		}
 	}
+
+	ws( idx, end );
 	ret = ja;
 	return ret;
 }
 
-Json Json::readObject( std::istream &in )
+DaJson::Json readJson( auto &idx, auto &end )
 {
-	Json ret;
-	Jk   jk;
-	char ch;
-	in >> std::ws;
-	std::string key;
-	State state = Object;
-	while( in.get(ch) && !in.eof() )
+	DaJson::Json ret;
+
+	while( idx != end )
 	{
-		ch = std::isspace( ch ) ? ' ' : ch;
-		switch( state )
+		ws( idx, end );
+		if( idx == end ) return ret;
+		char ch = *idx;
+		switch( ch )
 		{
-			case Object:
-				switch( ch )
-				{
-					case '{' :
-						in >> std::ws;
-						state = String;
-					break;
-					case '}' :
-						in >> std::ws;
-						ret = jk;
-						return ret;
-					break;
-				}
-				in >> std::ws;
+			case '{':
+				++idx;
+				ret = readObject( idx, end );
+				ws( idx, end );
 			break;
-			case String:
-				switch( ch )
-				{
-					case '"':
-						std::getline( in, key, '"' );
-						state = PostKey;
-						in >> std::ws;
-					break;
-				}
+			case '[':
+				++idx;
+				ret = readArray( idx, end );
+				ws( idx, end );
 			break;
-			case PostKey:
-				switch( ch )
-				{
-					case ':':
-						in >> std::ws;
-						jk.emplace( std::make_pair( key, readValue( in ) ));
-						state = PostValue;
-					break;
-				}
-			break;
-			case PostValue:
-				switch( ch )
-				{
-					case ',':
-						state = String;
-					break;
-					case '}':
-						in >> std::ws;
-						ret = jk;
-						return ret;
-					break;
-				}
-			break;
-			case Value: case PostValueArray:
+			case ',':
+				++idx;
+				ws( idx, end );
 			break;
 		}
 	}
-	ret = jk;
+
 	return ret;
 }
 
-const char *Json::stateStr( State state )
+
+void writeCh( auto &out, char ch )
 {
-	const char *ret = nullptr;
-	switch( state )
+	char ret[2]; ret[0] = ret[1] = 0;
+	switch( ch )
 	{
-		case Object:         ret = "Object";         break;
-		case String:         ret = "String";         break;
-		case Value:          ret = "Value";          break;
-		case PostValue:      ret = "PostValue";      break;
-		case PostValueArray: ret = "PostValueArray"; break;
-		case PostKey:        ret = "PostKey";        break;
-		default:             ret = "";               break;
+		case '\"': *out++ = '\\'; *out++ = '"';  break;
+		case '\\': *out++ = '\\'; *out++ = '\\'; break;
+		case '/' : *out++ =  '/';                break;
+		case '\b': *out++ = '\\'; *out++ = 'b';  break;
+		case '\f': *out++ = '\\'; *out++ = 'f';  break;
+		case '\n': *out++ = '\\'; *out++ = 'n';  break;
+		case '\r': *out++ = '\\'; *out++ = 'r';  break;
+		case '\t': *out++ = '\\'; *out++ = 't';  break;
+		default:
+			*out++ = ch;
+		break;
 	}
-	return ret;
+}
+
+void writeIt( auto &out, const DaJson::Json::DataT &data, bool prettyPrint, int depth, bool specialIdent = false )
+{
+	if( std::holds_alternative<std::string>( data ) )
+	{
+		const std::string &str = std::get<std::string>( data );
+		if( specialIdent ) { if(prettyPrint) { *out++ = '\n'; indent( out, depth );} }
+		*out++ = '"';
+		for( auto idx = 0u; idx < str.length(); ++idx )
+		{
+			char ch      = str[idx];
+			auto peekIdx = idx+1;
+			if( peekIdx < str.length() )
+			{
+				if( isUniChar( ch ) )
+				{
+					char ch2 = str[++idx];
+					if( isUniChar( ch2 ) )
+					{
+						std::string uni;
+						uni += ch; uni += ch2;
+						std::ostringstream strm;
+						strm << "\\u" << std::setfill('0') << std::setw(4) << std::hex << utf8ToCodePoint( uni );
+						std::string some = strm.str();
+						std::copy( some.begin(), some.end(), out );
+					}
+					else
+					{
+						*out++ = ch;
+						*out++ = ch2;
+					}
+				}
+				else
+				{
+					writeCh( out, ch );
+				}
+			}
+			else
+			{
+				writeCh( out, ch );
+			}
+		}
+		*out++ = '"';
+	}
+	else if( std::holds_alternative<DaJson::Json::I>( data ) )
+	{
+		std::string s = std::to_string( std::get<DaJson::Json::I>( data ) );
+		std::copy( s.begin(), s.end(), out );
+	}
+	else if( std::holds_alternative<DaJson::Json::F>( data ) )
+	{
+		const size_t buf_size = 64;
+		char buf[buf_size]{};
+		DaJson::Json::F n = std::get<DaJson::Json::F>( data );
+		std::to_chars_result result = std::to_chars( buf, buf+buf_size, n, std::chars_format::scientific, 5);
+		if (result.ec != std::errc())
+		{
+			throw std::runtime_error("Number format error");
+		}
+		std::copy( buf, result.ptr, out );
+	}
+	else if( std::holds_alternative<bool>( data ) )
+	{
+		constexpr std::string trueStr{"true"}, falseStr{"false"};
+		if( std::get<bool>( data ) )
+		{
+			std::copy( trueStr.begin(), trueStr.end(), out );
+		}
+		else
+		{
+			std::copy( falseStr.begin(), falseStr.end(), out );
+		}
+	}
+	else if( std::holds_alternative<DaJson::Json::Jk>( data ) )
+	{
+		std::size_t count = 0;
+		const DaJson::Json::Jk &jk      = std::get<DaJson::Json::Jk>( data );
+		if( jk.size() )
+		{
+			if(prettyPrint)
+			{
+				if( depth ) *out++ = '\n';
+				indent(out,  depth );
+			}
+			*out++ = '{';
+			if(prettyPrint)
+				*out++ = '\n';
+		}
+		for( const auto &[key, value] : jk )
+		{
+			if(prettyPrint) indent( out,  depth+1 );
+			*out++ = '"';
+			std::copy( key.begin(), key.end(), out );
+			constexpr std::string tmp{ "\": "};
+			std::copy( tmp.begin(), tmp.end(), out );
+			writeIt( out, value, prettyPrint, depth+1 );
+
+			if( jk.size() - 1 > count )
+			{
+				*out++ = ',';
+				if(prettyPrint)
+					*out++ = '\n';
+			}
+
+			count++;
+		}
+		if( jk.size() ) { if(prettyPrint) {*out++ = '\n'; indent( out, depth );} *out++ = '}'; };
+	}
+	else if( std::holds_alternative<DaJson::Json::Ja>( data ) )
+	{
+		std::size_t count = 0;
+		const DaJson::Json::Ja &ja = std::get<DaJson::Json::Ja>( data );
+		if( ja.size() ) { if(prettyPrint) {*out++ = '\n'; indent( out, depth );} *out++ = '['; };
+		for( auto &idx : ja )
+		{
+			writeIt( out, idx, prettyPrint, depth+1, true );
+			if( ja.size() - 1 > count ) *out++ = ',';
+			count++;
+		}
+		if( ja.size() ) { if(prettyPrint) {*out++ = '\n'; indent( out, depth );} *out++ = ']'; };
+	}
+	else
+	{
+		if(prettyPrint)
+		{
+			*out++ = '\n';
+			indent( out, depth );
+		}
+		constexpr std::string tmp{ "null"};
+		std::copy( tmp.begin(), tmp.end(), out );
+	}
+}
+
+}
+
+namespace DaJson
+{
+
+void Json::parse( std::istream_iterator<char> begin, std::istream_iterator<char> end )
+{
+	setNull();
+	*this =  readJson( begin, end );
+}
+
+void Json::parse( std::string::const_iterator begin, std::string::const_iterator end )
+{
+	setNull();
+	*this =  readJson( begin, end );
+}
+
+void Json::write( std::ostream_iterator<char> it ) const
+{
+	writeIt( it, *this, prettyPrint, 0, false );
+}
+
+void Json::write( std::string &out ) const
+{
+	auto it = std::back_inserter( out );
+	writeIt( it, *this, prettyPrint, 0, false );
+	if( prettyPrint ) out += '\n';
 }
 
 }

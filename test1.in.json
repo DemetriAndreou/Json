@@ -5,11 +5,11 @@
 		"image": 
 		{
 			"alignment": "center",
-			"exponemt": -1.23e-50,
+			"exponemt": -1.23000e-50,
 			"hOffset": 250,
-			"minu pi": -3.14159,
+			"minu pi": -3.14159e+00,
 			"name": "sun1",
-			"pi": 3.14159,
+			"pi": 3.14159e+00,
 			"src": "Images/Sun.png",
 			"vOffset": 250
 		},

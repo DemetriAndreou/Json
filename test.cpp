@@ -279,7 +279,7 @@ void readJson()
 {
 	Db dbIn;
 	dbIn.readDb(  "db.out.json" );
-	dbIn.writeDb( "db.in.json"  );
+	//dbIn.writeDb( "db.in.json"  );
 }
 
 void testJson( const std::string &file )
@@ -308,6 +308,50 @@ void testJson( const std::string &file )
 	else
 	{
 		std::cout << file << ":passed"  << '\n';
+	}
+
+	{
+		Json j;
+		j.parse( inStr );
+		std::string out = j.str();
+		if( inStr == out )
+		{
+			std::cout << ":passed string test" << '\n';
+		}
+		else
+		{
+			std::cerr << ":failed string test" << '\n';
+			std::ofstream outError( file + ".out.err.json" );
+			outError << out;
+		}
+	}
+
+	{
+		Json j;
+		j.setPretty( false );
+		j.parse( inStr );
+		const std::string noPretty = j.str();
+		{
+			Json jnp;
+			jnp.setPretty( false );
+			jnp.parse( noPretty );
+			const std::string outNp = jnp.str();
+			if( outNp == noPretty )
+			{
+				std::cout << ":passed no pretty string test" << '\n';
+			}
+			else
+			{
+				std::cerr << ":failed no pretty string test" << '\n';
+
+				std::ofstream outError( file + ".out.err.nopretty.json" );
+				outError  << outNp;
+
+				std::ofstream outError2( file + ".in.err.nopretty.json" );
+				outError2 << noPretty;
+
+			}
+		}
 	}
 }
 
@@ -434,24 +478,24 @@ void testOperatorAccess4()
 
 	std::map<std::string,std::string> tests =
 	{
-		{ "key_01", "data\" complete"  },
-		{ "key_02", "data\\ complete"  },
-		{ "key_03", "data/ complete"   },
+		{ "key_01", "data\" complete"   },
+		{ "key_02", "data\\ complete"   },
+		{ "key_03", "data/ complete"    },
 		{ "key_04", "data complete"   },
 		{ "key_05", "data complete"   },
 		{ "key_06", "data\x0A complete" },
 		{ "key_07", "data\x0D complete" },
 		{ "key_08", "data\x09 complete" },
-		{ "key_09", "dataΛ complete" },
-		{ "key_11", "\"" },
-		{ "key_12", "\\" },
-		{ "key_13", "/" },
-		{ "key_14", "\b" },
-		{ "key_15", "\f" },
-		{ "key_16", "\n" },
-		{ "key_17", "\r" },
-		{ "key_18", "\t" },
-		{ "key_19", "Λ" }
+		{ "key_09", "dataΛ complete"    },
+		{ "key_11", "\""                },
+		{ "key_12", "\\"                },
+		{ "key_13", "/"                 },
+		{ "key_14", "\b"                },
+		{ "key_15", "\f"                },
+		{ "key_16", "\n"                },
+		{ "key_17", "\r"                },
+		{ "key_18", "\t"                },
+		{ "key_19", "Λ"                 }
 	};
 
 	for( const auto &[key, value] : tests )
@@ -507,14 +551,29 @@ void testOperatorAccess5()
 	testJson( "test6" );
 }
 
+void testOperatorAccess6()
+{
+	std::string str( R"({
+	                       "data": 
+	                       [
+	                       	"data1",
+	                       	"data2"
+	                       ],
+	                       "end": "finished",
+	                       "middle": "half way",
+	                       "start": "begin"
+	                    })");
+
+	Json json;
+	json.parse( str.begin(), str.end() );
+}
 
 int main()
 {
 	createJson();
 	readJson();
 
-	for( std::string file : { "db", "test1", "test2", "test3", "test4" } )
-	for( std::string file : { "db" } )
+	for( const std::string file : { "db", "test1", "test2", "test3", "test4", "test6", "test7", "test8" } )
 	{
 		readWriteJson( file );
 		testJson(      file );
@@ -525,6 +584,7 @@ int main()
 	testOperatorAccess3();
 	testOperatorAccess4();
 	testOperatorAccess5();
+	testOperatorAccess6();
 
 	return 0;
 }
