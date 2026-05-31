@@ -30,6 +30,7 @@
 #include<map>
 #include<variant>
 
+
 namespace DaJson
 {
 
@@ -40,7 +41,6 @@ public:
 	using F     = double;
 	using Ja    = std::vector<Json>;
 	using Jk    = std::map<std::string,Json>;
-	//using Jk    = std::unordered_map<std::string,Json>;
 	using DataT = std::variant<std::monostate, F, I, bool, std::string, Ja, Jk>;
 
 	Ja::reference        operator[]( Ja::size_type      pos  )       { return std::get<Json::Ja>( data )[pos]; }
@@ -75,16 +75,16 @@ public:
 		return *this;
 	}
 
-	operator Json::DataT() const &      { return data;            }
-	operator Json::DataT() &&           { return std::move(data); }
+	operator Json::DataT() const &           { return data;                       }
+	operator Json::DataT() &&                { return std::move(data);            }
 
-	void setFmt( std::chars_format in ) { fmt         = in;                        }
-	std::chars_format getFmt()    const { return fmt;                              }
-	void setPrecision( int in )         { precision   = in;                        }
-	int  getPrecision()                 { return precision;                        }
-	void setPretty( bool in )           { prettyPrint = in;                        } 
-	bool getPretty()              const { return prettyPrint;                      }
-	std::string str( std::string::size_type reserve = 0)             const
+	void setFmt( std::chars_format in )      { fmt         = in;                  }
+	std::chars_format getFmt()    const      { return fmt;                        }
+	void setPrecision( int in )              { precision   = in;                  }
+	int  getPrecision()           const      { return precision;                  }
+	void setPrettyPrint( bool in )           { prettyPrint = in;                  } 
+	bool getPrettyPrint()         const      { return prettyPrint;                }
+	std::string str( std::string::size_type reserve = 0) const
 	{
 		std::string out;
 		if( reserve )
@@ -119,16 +119,17 @@ public:
 	}
 
 	void setNull()      { reset(); }
-	bool isNull() const { return std::holds_alternative<std::monostate>(data);      }
+	bool isNull() const { return std::holds_alternative<std::monostate>(data);    }
 
 private:
-	void reset()        { data = std::monostate{};                                  }
+	void reset()        { data = std::monostate{};                                }
 
 	void write( std::ostream_iterator<char> it ) const;
 	void write( std::string &out               ) const;
 
 	std::chars_format fmt         = std::chars_format::scientific;
-	int               precision   = 15;
+	//std::chars_format fmt         = std::chars_format::fixed;
+	int               precision   = 5;
 	bool              prettyPrint = true;
 
 	DataT data;

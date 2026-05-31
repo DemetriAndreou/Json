@@ -51,12 +51,15 @@ and parsed out, the meaning in the net result must be the same.
 Lint
 ----
 clang-tidy18 Json.cpp Json.h test.cpp
+```
 [1/3] Processing file ./Json.cpp.
 [2/3] Processing file ./Json.h.
 [3/3] Processing file ./test.cpp.
+```
 
 Checking with valgrind
 ----------------------
+```
 ==73873== Memcheck, a memory error detector
 ==73873== Copyright (C) 2002-2024, and GNU GPL'd, by Julian Seward et al.
 ==73873== Using Valgrind-3.26.0 and LibVEX; rerun with -h for copyright info
@@ -88,6 +91,7 @@ test6:passed
 ==73873==
 ==73873== For lists of detected and suppressed errors, rerun with: -s
 ==73873== ERROR SUMMARY: 0 errors from 0 contexts (suppressed: 0 from 0)
+```
 
 Performance
 -----------

@@ -70,7 +70,7 @@ struct MyJSONString
 	static void write(const std::string& s)
 	{
 		auto j = parse_only(s);
-		j.setPretty( false );
+		j.setPrettyPrint( false );
 		volatile auto sink = j.str(s.length());
 		//volatile auto sink = j.str();
 	}

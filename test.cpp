@@ -20,13 +20,11 @@
 */
 
 #include<Json.h>
-
 #include<fstream>
 #include<sstream>
 #include<time.h>
 #include<ctime>
 #include<memory>
-
 
 using namespace DaJson;
 
@@ -279,7 +277,7 @@ void readJson()
 {
 	Db dbIn;
 	dbIn.readDb(  "db.out.json" );
-	//dbIn.writeDb( "db.in.json"  );
+	dbIn.writeDb( "db.in.json"  );
 }
 
 void testJson( const std::string &file )
@@ -328,12 +326,12 @@ void testJson( const std::string &file )
 
 	{
 		Json j;
-		j.setPretty( false );
+		j.setPrettyPrint( false );
 		j.parse( inStr );
 		const std::string noPretty = j.str();
 		{
 			Json jnp;
-			jnp.setPretty( false );
+			jnp.setPrettyPrint( false );
 			jnp.parse( noPretty );
 			const std::string outNp = jnp.str();
 			if( outNp == noPretty )
@@ -553,27 +551,42 @@ void testOperatorAccess5()
 
 void testOperatorAccess6()
 {
-	std::string str( R"({
-	                       "data": 
-	                       [
-	                       	"data1",
-	                       	"data2"
-	                       ],
-	                       "end": "finished",
-	                       "middle": "half way",
-	                       "start": "begin"
-	                    })");
+	{
+		std::ifstream in(  "test9.in.json" );
+		Json json;
+		json.setPrecision( 3 );
+		json.setFmt( std::chars_format::fixed );
+		
+		in >> json;
 
-	Json json;
-	json.parse( str.begin(), str.end() );
+		std::ofstream out( "test9.out.json" );
+		out << json;
+	}
+	{
+		std::ifstream in(  "test9.in.json" );
+		std::ifstream out( "test9.out.json" );
+
+		std::string  inStr(  (std::istreambuf_iterator<char>(in)),  std::istreambuf_iterator<char>() );			
+		std::string  outStr( (std::istreambuf_iterator<char>(out)), std::istreambuf_iterator<char>() );
+
+		if( inStr == outStr )
+		{
+			std::cout << "testOperatorAccess6:passed\n";
+		}
+		else
+		{
+			std::cerr << "testOperatorAccess6:failed\n";
+		}
+	}
 }
+
 
 int main()
 {
 	createJson();
 	readJson();
 
-	for( const std::string file : { "db", "test1", "test2", "test3", "test4", "test6", "test7", "test8" } )
+	for( const std::string file : { "db", "test1", "test2", "test3", "test4", "test6", "test7", "test8", "test10" } )
 	{
 		readWriteJson( file );
 		testJson(      file );
