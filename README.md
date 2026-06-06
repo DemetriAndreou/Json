@@ -2,20 +2,17 @@
 Motivation
 ----------
 
-I needed a Json parser and my criteria was -
+I needed a JSON parser and my criteria was -
 
 				1. Works.
 				2. Easy to use.
 				3. In a pinch, I could fix/change.
 
-After reviewing the Json spec and considering the offerings, I thought it more straightforward to write one from
-scratch.
+After reviewing the JSON spec and considering the offerings, I thought it more straightforward to write one from scratch.
 
-Looking at the Json spec, I saw strings, numbers, booleans, null, key/value parings and arrays.  These can easily be
-mapped to std::string, long, bool, double, std::map/std::unordered_map.
+Looking at the JSON spec, I saw strings, numbers, booleans, null, key/value parings and arrays. These can easily be mapped to std::string, long, bool, double, std::map/std::unordered_map.
 
-With modern c++ the bridge between associative concepts of Json can readily be
-realised. The means of bridging the cap between modern c++ and Json are -
+With modern C++ can bridge between associative concepts of JSON. The means of bridging the cap between modern c++ and JSON are -
 
 				using I     = long;
 				using F     = double;
@@ -23,14 +20,11 @@ realised. The means of bridging the cap between modern c++ and Json are -
 				using Jk    = std::map<std::string,Json>;
 				using DataT = std::variant<std::monostate, long, double, bool, std::string, Ja, Jk>;
 
-At this one place, can change long to int, double to float and std::map to std::unordered_map and std::vector. These
-types could have been templated, however it's easy to change and the goal keep it was as simple as possible.
+At this one place, can change long to int, double to float and std::map to std::unordered_map and std::vector. These types could have been templated, however it's easy to change and the goal was to keep it as simple as possible.
 
-The DataT object inside the Json class can be readily copied/moved in and out. The reason for this is, can harness the
-full expressive power of the stl with the benefit of keeping Json.h as simple as possible. 
+The DataT object inside the Json class can be readily copied/moved in and out. The reason for this is, can harness the full expressive power of the Standard Templace Library with the benefit of keeping Json.h as simple as possible. 
 
-This is designed to take as input and output either a string or some std::stream. From below, can see the stream
-versions are must slower. Still, the option is there for either case.
+This is designed to take as input and output either a string or some std::stream. From below, can see the stream versions are much slower. Still, the option is there for either case.
 
 Examples
 --------
@@ -39,8 +33,7 @@ Use is exemplified within test.cpp.
 Exceptions
 ----------
 
-Exceptions are mainly thrown by misuse of DataT, ie you try to access a type which is not there, but this can be easily
-mitigated by properly interrogating the components. Also, if the json text is invalid. Again, see test.cpp for examples.
+Exceptions are mainly thrown by misuse of DataT, for example you try to access a type which is not there, but this can be easily mitigated by properly interrogating the components. Also, if the JSON text is invalid. Again, see test.cpp for examples.
 
 Tests
 -----
@@ -98,28 +91,34 @@ Performance
 
 Performance is comparable to nlohmann.
 
-| Library         | Parse % | Write % | Total % |
-|-----------------|---------|---------|---------|
-| myJsonStrings   | 100%    | 100%    | 100%    |
-| myJsonStreams   | 299%    | 381%    | 355%    |
-| nlohmann        | 95%     | 82%     | 86%     |
-| rapidjson       | 41%     | 39%     | 39%     |
-| simdjson        | 9%      | 17%     | 15%     |
-| AI              | 91%     | 265%    | 208%    |
+## 📊 Performance (huge.json — 827,420,037 bytes)
+### Round‑trip parse + write performance  
+Baseline = myJsonStrings = 8012.54 ms = 100%
+| Library          | Parse (ms) | Write (ms) | Total (ms) | Relative Speed vs myJsonStrings |
+|------------------|------------|------------|------------|---------------------------------|
+| myJsonStrings    | 2097.47    | 5915.07    | 8012.54    | 100%                             |
+| myJsonStreams    | 6946.30    | 20435.50   | 27381.80   | 341.7% (3.41× slower)            |
+| nlohmann/json    | 2358.62    | 4466.79    | 6825.42    | 85.2% (1.17× faster)             |
+| RapidJSON        | 1295.97    | 2315.19    | 3611.16    | 45.1% (2.22× faster)             |
+| simdjson DOM     | 281.33     | 981.66     | 1262.99    | 15.8% (6.34× faster)             |
+| AI (C++98)       | 2434.60    | 16597.40   | 19032.00   | 237.5% (2.37× slower)            |
 
 
-| Library         | real (s) | real % | Δ real | user (s) | user % | Δ user | sys (s) | sys % | Δ sys |
-|-----------------|----------|--------|--------|----------|--------|--------|---------|-------|-------|
-| myJsonStrings   | 10.177   | 100%   | 0%     | 8.431    | 100%   | 0%     | 1.731   | 100%  | 0%    |
-| myJsonStreams   | 30.977   | 304%   | +204%  | 26.253   | 311%   | +211%  | 4.397   | 254%  | +154% |
-| nlohmann        | 9.004    | 88%    | −12%   | 8.127    | 96%    | −4%    | 0.865   | 50%   | −50%  |
-| rapidjson       | 5.334    | 52%    | −48%   | 4.360    | 52%    | −48%   | 0.865   | 50%   | −50%  |
-| simdjson        | 3.245    | 32%    | −68%   | 2.123    | 25%    | −75%   | 1.117   | 65%   | −35%  |
-| AI              | 19.061   | 187%   | +87%   | 16.776   | 199%   | +99%   | 2.258   | 130%  | +30%  |
+
+## 🕒 Unix `time` results (real/user/sys)
+Baseline = myJsonStrings real = 10.089 s = 100%
+| Library          | real (s) | user (s) | sys (s) | real % vs baseline |
+|------------------|----------|----------|---------|---------------------|
+| myJsonStrings    | 10.089   | 7.163    | 2.886   | 100%                |
+| myJsonStreams    | 29.524   | 24.533   | 4.810   | 292.6%              |
+| nlohmann/json    | 8.899    | 7.757    | 1.125   | 88.2%               |
+| RapidJSON        | 5.718    | 4.698    | 1.016   | 56.6%               |
+| simdjson DOM     | 3.379    | 2.251    | 1.126   | 33.5%               |
+| AI (C++98)       | 21.178   | 16.376   | 4.785   | 210.0%              |
+
 
 
 The AI version is an AI generated version which is conformant to std::c98.
 
-Can run the performance tests yourself, go to subfolder performance/json_bench.  Here there are two scripts,
-configure.sh and run.sh.
+You can run the performance tests yourself. In subfolder performance/json_bench,  there are two scripts, configure.sh and run.sh.
  
