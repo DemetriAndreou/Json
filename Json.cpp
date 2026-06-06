@@ -24,6 +24,7 @@
 #include<cstdlib>
 #include<charconv>
 
+
 namespace
 {
 
@@ -125,7 +126,6 @@ inline void ws( auto &it, auto &end)
 {
 	while( it != end && std::isspace(static_cast<unsigned char>(*it)) )
 	{
-		//char ch = *it;
 		++it;
 	}
 }
@@ -133,6 +133,7 @@ inline void ws( auto &it, auto &end)
 const std::string readTillWs( auto &it, auto &end)
 {
 	std::string ret;
+	ret.reserve( 128 );
 
 	while( it != end
 	       && false == std::isspace(static_cast<unsigned char>(*it))
@@ -153,11 +154,11 @@ DaJson::Json readValue( auto &idx, auto &end );
 const std::string readString( auto &idx, auto &end )
 {
 	std::string ret;
+    ret.reserve(512);
 
 	while( idx != end && '"' != *idx )
 	{
-		auto ch = *idx++;
-		ret += ch;
+		ret.push_back( *idx++ );
 	}
 	if( *idx == '"' )
 	{
@@ -176,7 +177,7 @@ DaJson::Json readObject( auto &idx, auto &end )
 	while( idx != end )
 	{
 		ws( idx, end );
-		if( idx == end ) { ret = jk; return ret; }
+		if( idx == end ) { return ret = std::move(jk); }
 		char ch = *idx;
 		switch( ch )
 		{
@@ -187,7 +188,7 @@ DaJson::Json readObject( auto &idx, auto &end )
 			case '}':
 				++idx;
 				ws( idx, end );
-				return ret = jk;
+				return ret = std::move(jk);
 			case '"':
 			{
 				++idx;
@@ -214,7 +215,7 @@ DaJson::Json readObject( auto &idx, auto &end )
 		}
 	}
 
-	return ret = jk;
+	return ret = std::move(jk);
 }
 
 DaJson::Json readValue( auto &idx, auto &end )
@@ -228,6 +229,7 @@ DaJson::Json readValue( auto &idx, auto &end )
 		case '"':
 		{
 			++idx;
+			checkEnd( idx, end );
 			ch = *idx;
 			std::string string;
 			while( idx != end )
@@ -283,35 +285,39 @@ DaJson::Json readValue( auto &idx, auto &end )
 				ch = *idx;
 			}
 			ws( idx, end );
-			return ret = string;
+			return ret = std::move(string);
 		}
 		break;
 
 		case '{':
 		{
 			++idx;
-			ret = readObject( idx, end );
+			ws( idx, end );
+			ret = std::move(readObject( idx, end ));
 		}
 		break;
 
 		case '[':
 		{
 			++idx;
-			ret = readArray( idx, end );
+			ws( idx, end );
+			ret = std::move(readArray( idx, end ));
 		}
 		break;
 
 		case 't': case 'T':
 		{
-			ret = true;
 			readTillWs( idx, end );
+			ws( idx, end );
+			ret = true;
 		}
 		break;
 
 		case 'f': case 'F':
 		{
-			ret = false;
+			ws( idx, end );
 			readTillWs( idx, end );
+			ret = false;
 		}
 		break;
 
@@ -348,10 +354,12 @@ DaJson::Json readValue( auto &idx, auto &end )
 	
 			if( p_l_end < p_d_end )
 			{
+				ws( idx, end );
 				ret = static_cast<DaJson::Json::F>(d);
 			}
 			else
 			{
+				ws( idx, end );
 				ret = static_cast<DaJson::Json::I>(l);
 			}
 		}
@@ -381,7 +389,7 @@ DaJson::Json readArray( auto &idx, auto &end )
 			case ']':
 				++idx;
 				ws( idx, end );
-				return ret = ja;
+				return ret = std::move(ja);
 			break;
 
 			default:
@@ -394,7 +402,7 @@ DaJson::Json readArray( auto &idx, auto &end )
 	}
 
 	ws( idx, end );
-	return ret = ja;
+	return ret = std::move(ja);
 }
 
 DaJson::Json readJson( auto &idx, auto &end )
@@ -410,12 +418,12 @@ DaJson::Json readJson( auto &idx, auto &end )
 		{
 			case '{':
 				++idx;
-				ret = readObject( idx, end );
+				ret = std::move(readObject( idx, end ));
 				ws( idx, end );
 			break;
 			case '[':
 				++idx;
-				ret = readArray( idx, end );
+				ret = std::move(readArray( idx, end ));
 				ws( idx, end );
 			break;
 			case ',':
@@ -431,9 +439,8 @@ DaJson::Json readJson( auto &idx, auto &end )
 	return ret;
 }
 
-void writeCh( auto &out, char ch )
+inline void writeCh( auto &out, char ch )
 {
-	char ret[2]; ret[0] = ret[1] = 0;
 	switch( ch )
 	{
 		case '\"': *out++ = '\\'; *out++ = '"';  break;
@@ -444,9 +451,7 @@ void writeCh( auto &out, char ch )
 		case '\n': *out++ = '\\'; *out++ = 'n';  break;
 		case '\r': *out++ = '\\'; *out++ = 'r';  break;
 		case '\t': *out++ = '\\'; *out++ = 't';  break;
-		default:
-			*out++ = ch;
-		break;
+		default:   *out++ = ch;                  break;
 	}
 }
 
@@ -512,9 +517,8 @@ void writeIt( auto &out, const DaJson::Json::DataT &data, int depth, const WritI
 			*out++ = '"';
 			for( auto idx = 0u; idx < str.length(); ++idx )
 			{
-				char ch      = str[idx];
-				auto peekIdx = idx+1;
-				if( peekIdx < str.length() )
+				char ch = str[idx];
+				if( idx+1 < str.length() )
 				{
 					if( isUniChar( ch ) )
 					{
@@ -525,7 +529,7 @@ void writeIt( auto &out, const DaJson::Json::DataT &data, int depth, const WritI
 							uni += ch; uni += ch2;
 							std::ostringstream strm;
 							strm << "\\u" << std::setfill('0') << std::setw(4) << std::hex << utf8ToCodePoint( uni );
-							std::string some = strm.str();
+							const std::string some = strm.str();
 							std::copy( some.begin(), some.end(), out );
 						}
 						else
@@ -552,7 +556,7 @@ void writeIt( auto &out, const DaJson::Json::DataT &data, int depth, const WritI
 			std::size_t count = 0;
 			const DaJson::Json::Ja &ja = std::get<DaJson::Json::Ja>( data );
 			if( ja.size() ) { if(wData.prettyPrint) {*out++ = '\n'; indent( out, depth );} *out++ = '['; };
-			for( auto &idx : ja )
+			for( auto &idx : std::get<DaJson::Json::Ja>( data ) )
 			{
 				writeIt( out, idx, depth+1, wData, true );
 				if( ja.size() - 1 > count ) *out++ = ',';
@@ -564,7 +568,7 @@ void writeIt( auto &out, const DaJson::Json::DataT &data, int depth, const WritI
 		case 6:
 		{
 			std::size_t count = 0;
-			const DaJson::Json::Jk &jk      = std::get<DaJson::Json::Jk>( data );
+			const DaJson::Json::Jk &jk = std::get<DaJson::Json::Jk>( data );
 			if( jk.size() )
 			{
 				if(wData.prettyPrint)
@@ -576,7 +580,7 @@ void writeIt( auto &out, const DaJson::Json::DataT &data, int depth, const WritI
 				if(wData.prettyPrint)
 					*out++ = '\n';
 			}
-			for( const auto &[key, value] : jk )
+			for( const auto &[key, value] : std::get<DaJson::Json::Jk>( data ) )
 			{
 				if(wData.prettyPrint) indent( out,  depth+1 );
 				*out++ = '"';
@@ -610,7 +614,7 @@ void Json::parse( std::istream_iterator<char> begin, std::istream_iterator<char>
 	setNull();
 	int bakPrecision          = precision;
 	std::chars_format bakFmt  = fmt;
-	*this     =  readJson( begin, end );
+	*this     = readJson( begin, end );
 	precision = bakPrecision;
 	fmt       = bakFmt;
 }
@@ -620,7 +624,7 @@ void Json::parse( std::string::const_iterator begin, std::string::const_iterator
 	setNull();
 	int bakPrecision          = precision;
 	std::chars_format bakFmt  = fmt;
-	*this     =  readJson( begin, end );
+	*this     = readJson( begin, end );
 	precision = bakPrecision;
 	fmt       = bakFmt;
 }
@@ -638,4 +642,3 @@ void Json::write( std::string &out ) const
 }
 
 }
-
